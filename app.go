@@ -1,26 +1,22 @@
-/****
- * Copyright (c) 2020 Russia9
- */
-
 package main
 
 import (
-	"database/sql"
+	"cw-broker/lib"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/getsentry/sentry-go"
 	"github.com/sirupsen/logrus"
-	"kod-guildbot/bot"
-	"kod-guildbot/lib"
 	"os"
+	"time"
 )
 
 var logger = logrus.New()
 
 func main() {
+	// Logger init
 	logger.Out = os.Stdout
+	logger.Info("Initializing ChatWars Broker")
 
-	logger.Info("Initializing CWBR-Bot")
-
+	// Change logger log level
 	switch os.Getenv("CWBR_LOGLEVEL") {
 	case "TRACE":
 		logger.SetLevel(logrus.TraceLevel)
@@ -47,31 +43,36 @@ func main() {
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
-	dbHost := lib.GetEnvOrDefault("CWBR_DB_HOST", "localhost")
-	dbPort := lib.GetEnvOrDefault("CWBR_DB_PORT", "3306")
-	dbUser := lib.GetEnvOrDefault("CWBR_DB_USER", "cwbroker")
-	dbPassword := lib.GetEnvOrDefault("CWBR_DB_PASS", "")
-	dbName := lib.GetEnvOrDefault("CWBR_DB_NAME", "cwbroker")
+	SentryDSN := lib.GetEnv("CWBR_SENTRY_DSN", "")
+	SentryEnvironment := lib.GetEnv("CWBR_ENVIRONMENT", "production")
 
-	db, err := sql.Open("mysql", dbUser+":"+dbPassword+"@tcp("+dbHost+":"+dbPort+")/"+dbName)
+	// Sentry init
+	logger.Debug("Initializing Sentry")
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:         SentryDSN,
+		Environment: SentryEnvironment,
+	})
 	if err != nil {
-		logger.Panic(db)
-		return
+		logger.Warn("Sentry init error: ", err.Error())
 	}
+	defer sentry.Flush(2 * time.Second)
 
+	// Kafka consumer init
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": lib.GetEnvOrDefault("CWBR_KAFKA_ADDRESS", "localhost"),
+		"bootstrap.servers": lib.GetEnv("CWBR_KAFKA_ADDRESS", "localhost"),
 		"group.id":          "cw3",
 		"auto.offset.reset": "latest",
 	})
 
 	if err != nil {
 		logger.Panic(err)
+		sentry.CaptureException(err)
 		return
 	}
 
-	err = bot.InitBot(os.Getenv("CWBR_BOT_TOKEN"), logger, consumer, db)
+	err = InitBot(os.Getenv("CWBR_BOT_TOKEN"), logger, consumer)
 	if err != nil {
+		sentry.CaptureException(err)
 		logger.Panic(err)
 	}
 }
