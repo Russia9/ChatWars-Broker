@@ -14,6 +14,7 @@ import (
 )
 
 func InitBot(telegramToken string, logger *logrus.Logger, consumer *kafka.Consumer) error {
+	logger.Debug("Initializing Telegram Bot")
 	bot, err := telebot.NewBot(
 		telebot.Settings{
 			Token:  telegramToken,
@@ -43,8 +44,8 @@ func InitBot(telegramToken string, logger *logrus.Logger, consumer *kafka.Consum
 				logger.Error(fmt.Sprintf("Decoder error: %v (%v)\n", err, msg))
 			}
 			msgString :=
-				" " + message.SellerCastle + " <code>" + message.SellerName + "</code> : \n" +
-					" " + strconv.Itoa(message.Quantity) + " " + message.Item + " * 💰" + strconv.Itoa(message.Price)
+				" " + message.SellerCastle + message.SellerName + ": \n" +
+					" " + strconv.Itoa(message.Quantity) + " " + message.Item + " *💰" + strconv.Itoa(message.Price)
 			_, err = bot.Send(chat, msgString, telebot.ParseMode(telebot.ModeHTML))
 			if err != nil {
 				sentry.CaptureException(err)

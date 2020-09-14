@@ -58,6 +58,7 @@ func main() {
 	defer sentry.Flush(2 * time.Second)
 
 	// Kafka consumer init
+	logger.Debug("Initializing Kafka")
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": lib.GetEnv("CWBR_KAFKA_ADDRESS", "localhost"),
 		"group.id":          "cw3",
